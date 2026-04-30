@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Dino Full Game</title>
+
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: Arial;
+}
+
+canvas {
+    display: block;
+}
+
+.menu {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    background: rgba(255,255,255,0.9);
+    padding: 20px;
+    border-radius: 10px;
+}
+
+button {
+    padding: 10px 20px;
+    margin-top: 10px;
+    cursor: pointer;
+}
+
+#questionBox {
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    display: none;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- START MENU -->
+<div id="startMenu" class="menu">
+    <h1>Dino Game</h1>
+    <button onclick="startGame()">Start</button>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameOverMenu" class="menu" style="display:none;">
+    <h2>Game Over</h2>
+    <p id="finalScore"></p>
+    <button onclick="restart()">Chơi lại</button>
+</div>
+
+<!-- QUIZ -->
+<div id="questionBox">
+    <p id="questionText"></p>
+    <div id="answers"></div>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// ===== MẶT ĐẤT =====
+let groundY = canvas.height - 120;
+
+// ===== LOAD ẢNH =====
+let loaded = 0;
+
+function checkLoad(){
+    loaded++;
+    if(loaded === 2){
+        console.log("✅ Ảnh load xong");
+        draw(); // vẽ màn hình đầu
+    }
+}
+
+const playerImg = new Image();
+playerImg.src = "player.png";
+playerImg.onload = checkLoad;
+playerImg.onerror = () => alert("❌ Lỗi player.png");
+
+const bgImg = new Image();
+bgImg.src = "ok.jpg";
+bgImg.onload = checkLoad;
+bgImg.onerror = () => alert("❌ Lỗi ok.jpg");
+
+// ===== GAME =====
+let player = {
+    x:100,
+    y:groundY-80,
+    w:80,
+    h:80,
+    vy:0,
+    jumping:false
+};
+
+let gravity = 1;
+let obstacles = [];
+let nextSpawn = 0;
+
+let score = 0;
+let asking = false;
+let gameRunning = false;
+
+// ===== CÂU HỎI =====
+const questions = [
+    {q:"2+2=?", options:["3","4","5","6"], correct:1},
+    {q:"5x5=?", options:["10","20","25","30"], correct:2},
+    {q:"Thủ đô VN?", options:["Huế","HCM","Hà Nội","ĐN"], correct:2}
+];
+
+let currentQ = null;
+
+// ===== NHẢY =====
+document.addEventListener("keydown", e=>{
+    if(e.code==="Space" && !player.jumping && !asking && gameRunning){
+        player.vy = -20;
+        player.jumping = true;
+    }
+});
+
+// ===== START =====
+function startGame(){
+    document.getElementById("startMenu").style.display="none";
+
+    player.y = groundY - player.h;
+    player.vy = 0;
+    obstacles = [];
+    score = 0;
+    nextSpawn = 0;
+
+    gameRunning = true;
+    loop();
+}
+
+// ===== LOOP CHUẨN =====
+function loop(){
+    update();
+    draw();
+
+    if(gameRunning){
+        requestAnimationFrame(loop);
+    }
+}
+
+// ===== UPDATE =====
+function update(){
+    if(!gameRunning || asking) return;
+
+    player.vy += gravity;
+    player.y += player.vy;
+
+    if(player.y >= groundY - player.h){
+        player.y = groundY - player.h;
+        player.jumping = false;
+    }
+
+    if(nextSpawn <= 0){
+        let type = Math.random();
+
+        if(type < 0.6){
+            obstacles.push({x:canvas.width, y:groundY-60, w:40, h:60});
+        } else {
+            obstacles.push({x:canvas.width, y:groundY-60, w:40, h:60});
+            obstacles.push({x:canvas.width+45, y:groundY-60, w:40, h:60});
+        }
+
+        nextSpawn = Math.random()*400 + 300;
+    }
+
+    obstacles.forEach(o=>o.x -= 8);
+    nextSpawn -= 8;
+
+    for(let o of obstacles){
+        if(player.x < o.x+o.w &&
+           player.x+player.w > o.x &&
+           player.y < o.y+o.h &&
+           player.y+player.h > o.y){
+            gameOver();
+        }
+    }
+
+    score++;
+
+    if(score % 500 === 0){
+        askQuestion();
+    }
+
+    if(score >= 2000){
+        alert("🎉 Bạn thắng!");
+        gameRunning = false;
+    }
+}
+
+// ===== DRAW =====
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    ctx.drawImage(bgImg,0,0,canvas.width,canvas.height);
+    ctx.drawImage(playerImg,player.x,player.y,player.w,player.h);
+
+    ctx.fillStyle="green";
+    obstacles.forEach(o=>ctx.fillRect(o.x,o.y,o.w,o.h));
+
+    ctx.fillStyle="black";
+    ctx.font="30px Arial";
+    ctx.fillText("Score: "+score,20,40);
+}
+
+// ===== GAME OVER =====
+function gameOver(){
+    gameRunning = false;
+    document.getElementById("gameOverMenu").style.display="block";
+    document.getElementById("finalScore").innerText = "Score: " + score;
+}
+
+// ===== RESET =====
+function restart(){
+    document.getElementById("gameOverMenu").style.display="none";
+    startGame();
+}
+
+// ===== QUIZ =====
+function askQuestion(){
+    asking = true;
+
+    currentQ = questions[Math.floor(Math.random()*questions.length)];
+    document.getElementById("questionText").innerText = currentQ.q;
+
+    let html="";
+    currentQ.options.forEach((opt,i)=>{
+        html += `<button onclick="answer(${i})">${opt}</button><br>`;
+    });
+
+    document.getElementById("answers").innerHTML = html;
+    document.getElementById("questionBox").style.display="block";
+}
+
+function answer(i){
+    if(i === currentQ.correct){
+        asking = false;
+        document.getElementById("questionBox").style.display="none";
+        nextSpawn += 200;
+    } else {
+        gameOver();
+    }
+}
+</script>
+
+</body>
+</html>
