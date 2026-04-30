@@ -2,45 +2,33 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>Dino Full Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Dino Game</title>
 
 <style>
 body {
     margin: 0;
     overflow: hidden;
+    touch-action: none;
     font-family: Arial;
 }
-
-canvas {
-    display: block;
-}
+canvas { display: block; }
 
 .menu {
     position: absolute;
     top: 40%;
     left: 50%;
     transform: translateX(-50%);
-    text-align: center;
-    background: rgba(255,255,255,0.9);
+    background: white;
     padding: 20px;
     border-radius: 10px;
+    text-align: center;
 }
 
 button {
     padding: 10px 20px;
     margin-top: 10px;
-    cursor: pointer;
-}
-
-#questionBox {
-    position: absolute;
-    top: 30%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    display: none;
+    font-size: 18px;
 }
 </style>
 </head>
@@ -49,60 +37,46 @@ button {
 
 <canvas id="gameCanvas"></canvas>
 
-<!-- START MENU -->
 <div id="startMenu" class="menu">
-    <h1>Dino Game</h1>
+    <h2>Dino Game</h2>
     <button onclick="startGame()">Start</button>
 </div>
 
-<!-- GAME OVER -->
 <div id="gameOverMenu" class="menu" style="display:none;">
     <h2>Game Over</h2>
     <p id="finalScore"></p>
     <button onclick="restart()">Chơi lại</button>
 </div>
 
-<!-- QUIZ -->
-<div id="questionBox">
-    <p id="questionText"></p>
-    <div id="answers"></div>
-</div>
+<div id="questionBox" class="menu" style="display:none;"></div>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+// ===== KHAI BÁO TRƯỚC =====
+let groundY = 0;
 
-// ===== MẶT ĐẤT =====
-let groundY = canvas.height - 120;
-
-// ===== LOAD ẢNH =====
-let loaded = 0;
-
-function checkLoad(){
-    loaded++;
-    if(loaded === 2){
-        console.log("✅ Ảnh load xong");
-        draw(); // vẽ màn hình đầu
-    }
+// ===== RESIZE =====
+function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    groundY = canvas.height - 120;
 }
+window.addEventListener("resize", resize);
+resize();
 
+// ===== LOAD IMAGE =====
 const playerImg = new Image();
 playerImg.src = "player.png";
-playerImg.onload = checkLoad;
-playerImg.onerror = () => alert("❌ Lỗi player.png");
 
 const bgImg = new Image();
 bgImg.src = "ok.jpg";
-bgImg.onload = checkLoad;
-bgImg.onerror = () => alert("❌ Lỗi ok.jpg");
 
 // ===== GAME =====
 let player = {
     x:100,
-    y:groundY-80,
+    y:groundY - 80, // 🔥 FIX QUAN TRỌNG
     w:80,
     h:80,
     vy:0,
@@ -114,25 +88,31 @@ let obstacles = [];
 let nextSpawn = 0;
 
 let score = 0;
+let lives = 3;
 let asking = false;
 let gameRunning = false;
 
-// ===== CÂU HỎI =====
-const questions = [
-    {q:"2+2=?", options:["3","4","5","6"], correct:1},
-    {q:"5x5=?", options:["10","20","25","30"], correct:2},
-    {q:"Thủ đô VN?", options:["Huế","HCM","Hà Nội","ĐN"], correct:2}
-];
-
-let currentQ = null;
-
-// ===== NHẢY =====
-document.addEventListener("keydown", e=>{
-    if(e.code==="Space" && !player.jumping && !asking && gameRunning){
+// ===== JUMP =====
+function jump(){
+    if(!player.jumping && !asking && gameRunning){
         player.vy = -20;
         player.jumping = true;
     }
+}
+
+// PC
+document.addEventListener("keydown", e=>{
+    if(e.code==="Space") jump();
 });
+
+// MOBILE
+canvas.addEventListener("touchstart", e=>{
+    e.preventDefault();
+    jump();
+});
+
+// CLICK
+canvas.addEventListener("mousedown", jump);
 
 // ===== START =====
 function startGame(){
@@ -142,20 +122,10 @@ function startGame(){
     player.vy = 0;
     obstacles = [];
     score = 0;
+    lives = 3;
     nextSpawn = 0;
 
     gameRunning = true;
-    loop();
-}
-
-// ===== LOOP CHUẨN =====
-function loop(){
-    update();
-    draw();
-
-    if(gameRunning){
-        requestAnimationFrame(loop);
-    }
 }
 
 // ===== UPDATE =====
@@ -197,13 +167,8 @@ function update(){
 
     score++;
 
-    if(score % 500 === 0){
+    if(score > 0 && score % 500 === 0 && !asking){
         askQuestion();
-    }
-
-    if(score >= 2000){
-        alert("🎉 Bạn thắng!");
-        gameRunning = false;
     }
 }
 
@@ -218,9 +183,18 @@ function draw(){
     obstacles.forEach(o=>ctx.fillRect(o.x,o.y,o.w,o.h));
 
     ctx.fillStyle="black";
-    ctx.font="30px Arial";
+    ctx.font="24px Arial";
     ctx.fillText("Score: "+score,20,40);
+    ctx.fillText("❤️".repeat(lives),20,80);
 }
+
+// ===== LOOP (LUÔN CHẠY) =====
+function loop(){
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+loop();
 
 // ===== GAME OVER =====
 function gameOver(){
@@ -239,25 +213,36 @@ function restart(){
 function askQuestion(){
     asking = true;
 
-    currentQ = questions[Math.floor(Math.random()*questions.length)];
-    document.getElementById("questionText").innerText = currentQ.q;
+    let q = ["2+2=?", "5x5=?", "1+9=?"];
+    let a = [["3","4","5","6"],["10","20","25","30"],["8","9","10","11"]];
+    let correct = [1,2,2];
 
-    let html="";
-    currentQ.options.forEach((opt,i)=>{
-        html += `<button onclick="answer(${i})">${opt}</button><br>`;
+    let i = Math.floor(Math.random()*3);
+
+    let box = document.getElementById("questionBox");
+    box.style.display="block";
+
+    let html = `<p>${q[i]}</p>`;
+    a[i].forEach((opt,idx)=>{
+        html += `<button onclick="answer(${idx},${correct[i]})">${opt}</button><br>`;
     });
 
-    document.getElementById("answers").innerHTML = html;
-    document.getElementById("questionBox").style.display="block";
+    box.innerHTML = html;
 }
 
-function answer(i){
-    if(i === currentQ.correct){
+function answer(i,c){
+    if(i === c){
         asking = false;
         document.getElementById("questionBox").style.display="none";
-        nextSpawn += 200;
     } else {
-        gameOver();
+        lives--;
+        if(lives <= 0){
+            gameOver();
+        } else {
+            alert("Sai! Còn "+lives+" mạng");
+            asking = false;
+            document.getElementById("questionBox").style.display="none";
+        }
     }
 }
 </script>
